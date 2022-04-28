@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: puppeteer/new/ldlc.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: puppeteer/new/ldlc.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const config = require('./../../../config.json');
+const ScrapErrors = require('./../../errors.js');
+
+const phoneVendorUrl = 'https://www.ldlc.com';
+
+/**
+ * Main function to scrap ldlc
+ *
+ * @access public
+ * @param {object} page - The Puppeteer page API object
+ * @param {Phone} phone - The Phone object to search
+ * @param {object} phoneSearchConstraint - The search constraints (color, brand, model...)
+ * @returns {object} The parsed datas or an object with an error attribute if something went wrong
+ */
+async function scrap(page, phone, phoneSearchConstraint) {
+  try {
+    console.log('ldlc START');
+    // Goto ldlc, waiting page to be fully loaded
+    await Promise.all([
+      page.waitForNavigation({
+        waitUntil: 'networkidle0',
+        timeout: 0
+      }),
+      page.goto(phoneVendorUrl, {
+        timeout: 0
+      })
+    ]);
+
+    await page.waitFor(Math.random() * 500 + 200);
+    await search(page, phone, phoneSearchConstraint);
+
+    await page.waitFor(Math.random() * 500 + 200);
+    await getPhoneFromSearch(page, phone);
+
+    await page.waitFor(Math.random() * 500 + 200);
+    const parsedDatas = await parseResult(page);
+
+    console.log('ldlc END');
+    return parsedDatas;
+
+  } catch (err) {
+    return {
+      error: err.message
+    };
+  }
+}
+
+/**
+ * To make search on ldlc
+ *
+ * @access public
+ * @param {object} page - The Puppeteer page API object
+ * @param {Phone} phone - The Phone object to search
+ * @param {object} phoneSearchConstraint - The search constraints (color, brand, model...)
+ */
+async function search(page, phone, phoneSearchConstraint) {
+  // Focus searchField and make user search
+  phoneSearchConstraint.withQuotes = false; // ldlc doesn't accept quotes
+  const phoneSearch = phone.toString(phoneSearchConstraint);
+  console.log('ldlc search', phoneSearch);
+  await page.bringToFront();
+  await page.focus('#search_search_text');
+  await page.keyboard.type(phoneSearch, {
+    delay: 100
+  });
+  await page.waitFor(Math.floor(Math.random() * 100 + 50));
+  await page.bringToFront();
+
+  await Promise.all([
+    page.waitForNavigation({
+      waitUntil: 'networkidle0',
+      timeout: 0
+    }),
+    page.click('#formSearch > div > div.wrap-search > div.search > button', {
+      delay: Math.random() * 200 + 50
+    }),
+  ]);
+  await page.waitFor(Math.random() * 1000 + 500);
+  await page.bringToFront();
+
+  // Check if ldlc found a phone
+  const hasResults = (await page.$('#listing.no-result') == null);
+  if (!hasResults) {
+    throw new Error(ScrapErrors.NO_RESULT_FOUND);
+  }
+}
+
+/**
+ * Find the phone in ldlc search result
+ *
+ * @access public
+ * @param {object} page - The Puppeteer page API object
+ * @param {Phone} phone - The Phone object to search
+ */
+async function getPhoneFromSearch(page, phone) {
+  console.log('ldlc select in result list');
+  // Check if ldlc found only one product (and already open detailed page), or a list of products
+  if (page.url().indexOf('recherche') != -1) {
+    // Reload page with category "Mobile &amp; smartphone" (+fcat-4416) and condition "neuf" (+fiu-0)
+    await Promise.all([
+      page.waitForNavigation({
+        waitUntil: 'networkidle0',
+        timeout: 0
+      }),
+      page.goto(page.url() + '+fcat-4416+fiu-0.html?department=all', {
+        timeout: 0
+      })
+    ]);
+
+    // Check again if ldlc found a phone with constraints
+    const hasResults = (await page.$('#listing.no-result') == null);
+    if (!hasResults) {
+      throw new Error(ScrapErrors.NO_RESULT_FOUND);
+    }
+
+    // Click on first result founded TODO check equivalency with
+    await page.waitForSelector('#listing > div.wrap-list > div.listing-product > ul > li:nth-child(1) > div.dsp-cell-right > div.pdt-info > div.pdt-desc > h3 > a', {
+      timeout: 0
+    });
+    await page.bringToFront();
+    await Promise.all([
+      page.waitForNavigation({
+        waitUntil: 'networkidle0',
+        timeout: 0
+      }),
+      page.click('#listing > div.wrap-list > div.listing-product > ul > li:nth-child(1) > div.dsp-cell-right > div.pdt-info > div.pdt-desc > h3 > a')
+    ]);
+  }
+}
+
+/**
+ * Parse ldlc result page(s) and return the parsed datas
+ *
+ * @access public
+ * @param {object} page - The Puppeteer page API object
+ * @returns {object} The parsed datas
+ */
+async function parseResult(page) {
+  console.log('ldlc parse result');
+  // No need to use artoo. As JQuery is already loaded, use it to get price and vendorLabel
+  await page.bringToFront();
+  var parsedDatas = await page.evaluate((gradeToCRCondition) => {
+    const priceDOM = ($('aside > div.price > div.price').length != 0) ?
+      $('aside > div.price > div.price') : // Normal case
+      $('aside > div.price > div.new-price'); // Price reduction case
+
+    var result = {
+      vendorLabel: $('#activeOffer > div.title > h1').text().trim(),
+      available: ($('.stock').text().trim() == 'En stock'),
+      availability: $('.stock').text().trim(),
+      isPromo: false,
+      price: parseFloat(priceDOM.text()
+        .replace(' ', '')
+        .replace('€', '.'))
+    };
+
+    if ($('.main div.price > div.old-price').length > 0) {
+      result.isPromo = true;
+      result.oldPrice = parseFloat($('.main div.price > div.old-price').text()
+        .replace('€', '.'));
+    }
+    if ($('.main div.price > div.promo-timeout').length > 0) {
+      result.promo = $('.main div.price > div.promo-timeout').text();
+    }
+
+    return result;
+  }, config.cashandrepair.condition_equivalence);
+
+  return parsedDatas;
+}
+
+module.exports = {
+  scrap
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Phone.html">Phone</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyRules">applyRules</a></li><li><a href="global.html#excludeDeviationFromMedian">excludeDeviationFromMedian</a></li><li><a href="global.html#getPhoneFromSearch">getPhoneFromSearch</a></li><li><a href="global.html#getScraper">getScraper</a></li><li><a href="global.html#getVendorType">getVendorType</a></li><li><a href="global.html#iframeAttached">iframeAttached</a></li><li><a href="global.html#initRoutes">initRoutes</a></li><li><a href="global.html#logToAswo">logToAswo</a></li><li><a href="global.html#logToChronospare">logToChronospare</a></li><li><a href="global.html#logToUtopya">logToUtopya</a></li><li><a href="global.html#median">median</a></li><li><a href="global.html#openPage">openPage</a></li><li><a href="global.html#parseResult">parseResult</a></li><li><a href="global.html#priceRangeMargin">priceRangeMargin</a></li><li><a href="global.html#roundPrice">roundPrice</a></li><li><a href="global.html#scrap">scrap</a></li><li><a href="global.html#scrapVendor">scrapVendor</a></li><li><a href="global.html#scrapVendors">scrapVendors</a></li><li><a href="global.html#search">search</a></li><li><a href="global.html#setArtoo">setArtoo</a></li><li><a href="global.html#setLevenshteinFunction">setLevenshteinFunction</a></li><li><a href="global.html#timeout">timeout</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.3</a> on Wed Feb 12 2020 10:28:51 GMT+0100 (GMT+01:00)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

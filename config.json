@@ -1,0 +1,177 @@
+{
+  "temps_max_par_site": 150,
+  "nb_tentatives_max_par_site": 3,
+
+  "cashandrepair": {
+    "ecart_median_max": 0.30,
+    "condition_equivalence": {
+      "A": "Très bon état",
+      "B": "Bon état",
+      "C": "Etat moyen"
+    },
+    "decote": {
+      "A": 1,
+      "B": 1.1,
+      "C": 1.2
+    },
+    "tranches": [{
+        "min": 0,
+        "max": 49,
+        "marge": 2.5
+      },
+      {
+        "min": 49,
+        "max": 89,
+        "marge": 2.3
+      },
+      {
+        "min": 89,
+        "max": 199,
+        "marge": 2
+      },
+      {
+        "min": 199,
+        "max": 249,
+        "marge": 1.7
+      },
+      {
+        "min": 249,
+        "max": 999999,
+        "marge": 1.5
+      }
+    ]
+  },
+
+  "neuf": {
+    "boulanger": {
+      "commission": 0.20
+    },
+    "cdiscount": {
+      "commission": 0.20
+    },
+    "ldlc": {
+      "commission": 0.20
+    }
+  },
+
+  "occasion": {
+    "backmarket": {
+      "condition_equivalence": {
+        "Comme neuf": "A",
+        "Très bon état": "B",
+        "Bon état": "B",
+        "État correct": "C",
+        "Stallone": ""
+      },
+      "commission": 0.22
+    },
+
+    "easycash": {
+      "condition_equivalence": {
+        "Parfait état": "A",
+        "Bon état": "B"
+      },
+      "commission": 0.22
+    },
+
+    "rachatdemobile": {
+      "condition_equivalence": {
+        "Fonctionnel": "B",
+        "Hors service": "C"
+      },
+      "commission": 0.22
+    },
+
+    "recommerce": {
+      "condition_equivalence": {
+        "Comme neuf": "A",
+        "Très bon état": "B",
+        "Bon état": "C",
+        "Etat correct": ""
+      },
+      "commission": 0.22
+    }
+  },
+
+  "pieces_detachees": {
+    "categories": [
+      "Autre", "Adhésif", "Antenne", "Batterie", "Bouton home", "Caméra", "Capteur de proximité", "Châssis", "Connecteur de charge",
+      "Vitre arrière", "Ecouteur interne", "Ecran complet", "Fixation interne", "Haut-parleur", "LCD", "Lentille caméra",
+      "Nappe", "Puce", "Tiroir SIM", "Vibreur", "Visserie", "Tactile"
+    ],
+    "marge_atelier": 0.10,
+    "marge_franchise": 0.15,
+    "utopya": {
+      "commission": 0.22,
+      "login": "",
+      "password": "",
+      "mots_clefs_interdits": [
+
+      ],
+      "mots_clefs_categories": {
+
+      }
+    },
+
+    "sosav": {
+      "commission": 0.22,
+      "mots_clefs_interdits": [
+        "NanoClear", "Chiffon", "iHold", "Support voiture", "Kit de réparation", "Chargeur"
+      ],
+      "mots_clefs_categories": {
+        "kit": "Autre",
+        "câble": "Autre",
+        "adaptateur": "Autre",
+        "pack": "Autre",
+        "prise jack": "Autre",
+        "dock": "Autre",
+        "ecouteurs": "Autre",
+        "coque": "Autre",
+        "film": "Autre",
+        "bague support": "Autre",
+        "joint étanchéité": "Autre",
+        "plaque métal": "Autre",
+        "carte microsd": "Autre",
+        "etui": "Autre",
+        "verre de protection": "Autre",
+        "sticker": "Adhésif",
+        "ecran": "Ecran complet"
+      }
+    },
+
+    "aswo": {
+      "commission": 0.22,
+      "login": "",
+      "password": "",
+      "mots_clefs_interdits": [
+
+      ],
+      "categories_equivalence": {
+        "Feuille adhésive": "Adhésif",
+        "ANTENNES GSM": "Antenne",
+        "HAUTS PARLEURS": "Haut-parleur",
+        "HAUT PARLEURS MINIATURES": "Haut-parleur",
+        "FILMS DE PROTECTION ADHESIF": "Adhésif",
+        "LECTEURS DE CARTE SIM INTERNE": "Tiroir SIM",
+        "ARTICLES DIVERS": "Autre",
+        "VIS": "Visserie"
+      }
+    },
+
+    "chronospare": {
+      "commission": 0.22,
+      "login": "",
+      "password": "",
+      "mots_clefs_interdits": [
+
+      ],
+      "mots_clefs_categories": {
+        "écran LCD": "Ecran complet",
+        "vitre tactile + écran LCD": "Ecran complet",
+        "vitre de protection": "Autre",
+        "étui": "Autre",
+        "coque": "Autre"
+      }
+    }
+  }
+}

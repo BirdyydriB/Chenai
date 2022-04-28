@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: businessRules.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: businessRules.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>const config = require('./../config.json');
+
+/**
+ * Apply business rules to scraping results
+ *
+ * @access public
+ * @param {object} scrapingResults - The result of routes.scrapVendors
+ * @returns {object} prices - The price(s) after applying all businnes rules (vendor commission, median, price range margin, condition price reduction)
+ * @returns {?object} prices.newPrices - Price once business rules applied, for new vendors
+ * @returns {?object} prices.secondHandPrices - Prices per condition once business rules applied, for secondHand vendors
+ * @returns {?object} prices.categoryPrices - Prices by categories once business rules applied, for single parts vendors
+ */
+function applyRules(scrapingResults) {
+  console.log('applyRules START');
+  // Init results
+  var returnNew = false, returnSecondHand = false, returnParts = false;
+  var newPrices = { prices: [], commissionedPrices: [] };
+  var secondHandPrices = {};
+  for (grade of Object.keys(config.cashandrepair.decote)) {
+    newPrices[grade] = {};
+    secondHandPrices[grade] = { prices: [], commissionedPrices: [] };
+  }
+  var categoryPrices = {};
+  var rdmCategoryPrices = {};
+  for (category of config.pieces_detachees.categories) {
+    categoryPrices[category] = { prices: [], commissionedPrices: [] };
+    rdmCategoryPrices[category] = null;
+  }
+
+  // Foreach scraping result, get and apply vendor commission
+  for (resultKey of Object.keys(scrapingResults)) {
+    const vendorType = getVendorType(resultKey);
+    if (vendorType &amp;&amp; scrapingResults[resultKey] &amp;&amp; !scrapingResults[resultKey].error) {
+      // Vendor scraping result : apply vendor commission
+      const vendorCommission = config[vendorType][resultKey].commission;
+      if(vendorType === 'neuf') {
+        returnNew = true;
+        const commissionedPrice = roundPrice(scrapingResults[resultKey].price / (1 + vendorCommission));
+        newPrices.prices.push(scrapingResults[resultKey].price);
+        newPrices.commissionedPrices.push(commissionedPrice);
+      }
+      else if(vendorType === 'occasion') {
+        returnSecondHand = true;
+        for (priceInfo of scrapingResults[resultKey].prices) {
+          const commissionedPrice = roundPrice(priceInfo.price / (1 + vendorCommission));
+          if (resultKey != 'rachatdemobile') {
+            secondHandPrices[priceInfo.grade].prices.push(priceInfo.price);
+            secondHandPrices[priceInfo.grade].commissionedPrices.push(commissionedPrice);
+          }
+          else {
+            priceInfo.commissionedPrice = commissionedPrice;
+            rdmCategoryPrices[priceInfo.grade] = priceInfo.commissionedPrice;
+          }
+        }
+      }
+      else if(vendorType === 'pieces_detachees') {
+        returnParts = true;
+        for (singlepartsCategory of Object.keys(scrapingResults[resultKey])) {
+          if (Array.isArray(scrapingResults[resultKey][singlepartsCategory])) {
+            // Foreach categories
+            for (singleParts of scrapingResults[resultKey][singlepartsCategory]) {
+              const commissionedPrice = roundPrice(singleParts.price.net / (1 + vendorCommission));
+              singleParts.price.commissionedPrice = commissionedPrice;
+
+              if (categoryPrices[singlepartsCategory]) {
+                // Only for categories defined in config file
+                categoryPrices[singlepartsCategory].prices.push(singleParts.price.net);
+                categoryPrices[singlepartsCategory].commissionedPrices.push(commissionedPrice);
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Get median
+  newPrices.median = median(newPrices.commissionedPrices);
+  for (grade of Object.keys(secondHandPrices)) {
+    secondHandPrices[grade].median = median(secondHandPrices[grade].commissionedPrices);
+  }
+
+  // Exclude prices too far from median and recalculate median
+  newPrices.medianExcluded = median(excludeDeviationFromMedian(newPrices.commissionedPrices, newPrices.median));
+  for (grade of Object.keys(secondHandPrices)) {
+    secondHandPrices[grade].medianExcluded = median(excludeDeviationFromMedian(secondHandPrices[grade].commissionedPrices, secondHandPrices[grade].median));
+  }
+
+  // Apply margin by price range
+  newPrices.priceRangeMargin = priceRangeMargin(newPrices.medianExcluded);
+  for (grade of Object.keys(secondHandPrices)) {
+    secondHandPrices[grade].priceRangeMargin = priceRangeMargin(secondHandPrices[grade].medianExcluded);
+  }
+
+  // Compare secondHandPrice grade A with rachatdemobile newMedianPrice
+  if (scrapingResults.rachatdemobile &amp;&amp; scrapingResults.rachatdemobile.prices &amp;&amp; scrapingResults.rachatdemobile.prices.length > 0) {
+    for (grade of Object.keys(secondHandPrices)) {
+      if(rdmCategoryPrices[grade]) {
+        secondHandPrices[grade].rachatdemobileCompare = parseFloat(((secondHandPrices[grade].priceRangeMargin - rdmCategoryPrices[grade]) / rdmCategoryPrices[grade]).toFixed(4));
+      }
+    }
+  }
+
+  // Apply price reduction by condition (for new vendors)
+  var currentConditionPriceRangeMargin = newPrices.priceRangeMargin;
+  for (grade of Object.keys(config.cashandrepair.decote)) {
+    currentConditionPriceRangeMargin = roundPrice(currentConditionPriceRangeMargin / config.cashandrepair.decote[grade]);
+    newPrices[grade] = { "conditionDiscount": currentConditionPriceRangeMargin };
+  }
+
+  // Apply businnes rules for single parts categories
+  for (category of config.pieces_detachees.categories) {
+    categoryPrices[category].median = median(categoryPrices[category].commissionedPrices);
+    categoryPrices[category].workshopMargin = roundPrice(categoryPrices[category].median - config.pieces_detachees.marge_atelier * categoryPrices[category].median);
+    categoryPrices[category].franchiseMargin = roundPrice(categoryPrices[category].median - config.pieces_detachees.marge_franchise * categoryPrices[category].median);
+
+    for (grade of Object.keys(config.cashandrepair.decote)) {
+      // Foreach condition grade, compare workshopMargin and franchiseMargin with new and secondHand prices
+      var workshopMarginCompareNew = null, workshopMarginCompareOld = null, franchiseMarginCompareNew = null, franchiseMarginCompareOld = null;
+      if (categoryPrices[category].median &amp;&amp; newPrices[grade] &amp;&amp; newPrices[grade].conditionDiscount) {
+        workshopMarginCompareNew = (newPrices[grade].conditionDiscount == categoryPrices[category].workshopMargin) ?
+          'equal' :
+          ((newPrices[grade].conditionDiscount > categoryPrices[category].workshopMargin) ? 'sup' : 'inf');
+
+        franchiseMarginCompareNew = (newPrices[grade].conditionDiscount == categoryPrices[category].franchiseMargin) ?
+          'equal' :
+          ((newPrices[grade].conditionDiscount > categoryPrices[category].franchiseMargin) ? 'sup' : 'inf');
+      }
+      if (categoryPrices[category].median &amp;&amp; secondHandPrices[grade] &amp;&amp; secondHandPrices[grade].priceRangeMargin) {
+        workshopMarginCompareOld = (secondHandPrices[grade].priceRangeMargin == categoryPrices[category].workshopMargin) ?
+          'equal' :
+          ((secondHandPrices[grade].priceRangeMargin > categoryPrices[category].workshopMargin) ? 'sup' : 'inf');
+
+        franchiseMarginCompareOld = (secondHandPrices[grade].priceRangeMargin == categoryPrices[category].franchiseMargin) ?
+          'equal' :
+          ((secondHandPrices[grade].priceRangeMargin > categoryPrices[category].franchiseMargin) ? 'sup' : 'inf');
+      }
+
+      categoryPrices[category][grade] = {
+        'workshopMargin' : {
+          'new': workshopMarginCompareNew,
+          'secondHand': workshopMarginCompareOld
+        },
+        'franchiseMargin' : {
+          'new': franchiseMarginCompareNew,
+          'secondHand': franchiseMarginCompareOld
+        }
+      }
+    }
+  }
+
+  console.log('applyRules DONE');
+  // Return result (if needed)
+  return Object.assign(scrapingResults,
+    returnNew ? {newPrices} : null,
+    returnSecondHand ? {secondHandPrices} : null,
+    returnParts ? {categoryPrices} : null
+  );
+}
+
+/**
+ * Return the vendor type of a vendor (neuf, occasion, pieces_detachees)
+ *
+ * @access public
+ * @param {string} vendorName - The vendor name
+ * @returns {string} The vendor type
+ */
+function getVendorType(vendorName) {
+  switch (vendorName) {
+    case 'ldlc':
+    case 'boulanger':
+    case 'cdiscount':
+      return 'neuf';
+      break;
+
+    case 'easycash':
+    case 'backmarket':
+    case 'rachatdemobile':
+    case 'recommerce':
+      return 'occasion';
+      break;
+
+    case 'utopya':
+    case 'sosav':
+    case 'aswo':
+    case 'chronospare':
+      return 'pieces_detachees';
+      break;
+
+    default:
+      return false;
+      break;
+  }
+}
+
+/**
+ * Rounding a number two digits after the decimal point
+ *
+ * @access public
+ * @param {number} price - Number to round
+ * @returns {number} The rounded number
+ */
+function roundPrice(price) {
+  return parseFloat(price.toFixed(2));
+}
+
+/**
+ * Get median from an array of number
+ *
+ * @access public
+ * @param {Array&lt;number>} arr - Array of number we want the median
+ * @returns {number} The median
+ */
+function median(arr) {
+  const mid = Math.floor(arr.length / 2);
+  const nums = [...arr].sort((a, b) => a - b);
+  return (arr.length % 2 !== 0) ? nums[mid] : roundPrice((nums[mid - 1] + nums[mid]) / 2);
+}
+
+/**
+ * Remove values from an array if too far from median value of this array
+ *
+ * @access public
+ * @param {Array&lt;number>} arr - Array of number we get the median
+ * @param {number} medianValue - The median value of arr
+ * @returns {Array&lt;number>} The array given in parameter, without "extreme" values
+ */
+function excludeDeviationFromMedian(arr, medianValue) {
+  var result = [];
+  for(price of arr) {
+    if((arr.length &lt;= 2) ||
+        ((price &lt; medianValue * (config.cashandrepair.ecart_median_max + 1)) &amp;&amp;
+        (price > medianValue * (1 - config.cashandrepair.ecart_median_max)))) {
+      result.push(price);
+    }
+  }
+  return result;
+}
+
+/**
+ * Apply marge, based on config.cashandrepair.tranches
+ *
+ * @access public
+ * @param {number} price - The price we want to marged
+ * @returns {number} The marged price
+ */
+function priceRangeMargin(price) {
+  for (priceRange of config.cashandrepair.tranches) {
+    if ((price >= priceRange.min) &amp;&amp; (price &lt; priceRange.max)) {
+      return roundPrice(price / priceRange.marge);
+    }
+  }
+  return price;
+}
+
+module.exports = {
+  applyRules,
+  median
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Phone.html">Phone</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyRules">applyRules</a></li><li><a href="global.html#excludeDeviationFromMedian">excludeDeviationFromMedian</a></li><li><a href="global.html#getPhoneFromSearch">getPhoneFromSearch</a></li><li><a href="global.html#getScraper">getScraper</a></li><li><a href="global.html#getVendorType">getVendorType</a></li><li><a href="global.html#iframeAttached">iframeAttached</a></li><li><a href="global.html#initRoutes">initRoutes</a></li><li><a href="global.html#logToAswo">logToAswo</a></li><li><a href="global.html#logToChronospare">logToChronospare</a></li><li><a href="global.html#logToUtopya">logToUtopya</a></li><li><a href="global.html#median">median</a></li><li><a href="global.html#openPage">openPage</a></li><li><a href="global.html#parseResult">parseResult</a></li><li><a href="global.html#priceRangeMargin">priceRangeMargin</a></li><li><a href="global.html#roundPrice">roundPrice</a></li><li><a href="global.html#scrap">scrap</a></li><li><a href="global.html#scrapVendor">scrapVendor</a></li><li><a href="global.html#scrapVendors">scrapVendors</a></li><li><a href="global.html#search">search</a></li><li><a href="global.html#setArtoo">setArtoo</a></li><li><a href="global.html#setLevenshteinFunction">setLevenshteinFunction</a></li><li><a href="global.html#timeout">timeout</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.3</a> on Wed Feb 12 2020 10:28:51 GMT+0100 (GMT+01:00)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>

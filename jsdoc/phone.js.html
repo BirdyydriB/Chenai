@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>JSDoc: Source: phone.js</title>
+
+    <script src="scripts/prettify/prettify.js"> </script>
+    <script src="scripts/prettify/lang-css.js"> </script>
+    <!--[if lt IE 9]>
+      <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+    <link type="text/css" rel="stylesheet" href="styles/prettify-tomorrow.css">
+    <link type="text/css" rel="stylesheet" href="styles/jsdoc-default.css">
+</head>
+
+<body>
+
+<div id="main">
+
+    <h1 class="page-title">Source: phone.js</h1>
+
+    
+
+
+
+    
+    <section>
+        <article>
+            <pre class="prettyprint source linenums"><code>/**
+ * A phone
+ * @access public
+ * @class
+ */
+class Phone {
+  set brand(brand) {
+    this._brand = brand;
+  }
+  get brand() {
+    return this._brand;
+  }
+  set model(model) {
+    this._model = model;
+  }
+  get model() {
+    return this._model;
+  }
+  set color(color) {
+    this._color = color;
+  }
+  get color() {
+    return this._color;
+  }
+  set capacity(capacity) {
+    this._capacity = capacity;
+  }
+  get capacity() {
+    return this._capacity;
+  }
+
+  constructor() {
+    return this;
+  }
+
+  /**
+   * Pick a random json phone in the list below, parse it and return as a Phone
+   *
+   * @access public
+   * @returns {Phone} A random Phone
+   */
+  static getRandomPhone() {
+    const randomPhones = [
+      '{"marque":"Apple", "modele":"iPhone 6", "couleur":"Gris sidéral", "capacite":"64Go"}',
+      '{"marque":"Apple", "modele":"iPhone 11 Pro", "couleur":"vert nuit", "capacite":"256 Go"}',
+      '{"marque":"WIKO", "modele":"View 2", "couleur":"Noir", "capacite":"32Go"}',
+      '{"marque":"WIKO", "modele":"Sunny 3", "couleur":"Anthracite", "capacite":"8Go"}',
+      '{"marque":"Wiko", "modele":"Tommy 2", "couleur":"Noir", "capacite":"8 Go"}',
+      // '{"marque":"Nokia", "modele":"9 Pureview", "couleur":"Bleu", "capacite":"128 Go"}',
+      // '{"marque":"Nokia", "modele":"3310", "couleur":"Noir", "capacite":""}',
+      '{"marque":"Sony", "modele":"Xperia XZ2", "couleur":"Noir", "capacite":""}',
+      '{"marque":"SONY", "modele":"Xperia XA1", "couleur":"Noir", "capacite":"32 Go"}',
+      '{"marque":"HUAWEI", "modele":"P20", "couleur":"Noir", "capacite":"128Go"}',
+      '{"marque":"HUAWEI", "modele":"P30", "couleur":"Bleu Nacré", "capacite":"128Go"}',
+      // '{"marque":"ALCATEL", "modele":"Idol 4", "couleur":"Noir", "capacite":"16 Go"}',
+      // '{"marque":"ALCATEL", "modele":"Pop 4", "couleur":"Gris", "capacite":"8 Go"}',
+      '{"marque":"Samsung", "modele":"S10", "couleur":"rouge", "capacite":"128Go"}',
+      '{"marque":"SAMSUNG", "modele":"Galaxy S6", "couleur":"Or", "capacite":"32 Go"}',
+      // '{"marque":"SAMSUNG", "modele":"Licorne", "couleur":"Arc-en-ciel", "capacite":"128 To"}',
+      // '{"marque":"Fhrtil", "modele":"Cfdsl", "couleur":"frr", "capacite":"catads"}',
+      // '{"marque":"SAMSUNG", "modele":"Galaxy Grand Prime", "couleur":"Noir", "capacite":"8 Go"}',
+    ];
+    const randomJson = randomPhones[Math.floor(Math.random() * randomPhones.length)];
+    return new Phone().parse(randomJson);;
+  }
+
+  /**
+   * Parse a json, return a new Phone
+   *
+   * @access public
+   * @param {object} jsonDatas - The json to parse
+   * @returns {Phone} The parsed Phone
+   */
+  parse(jsonDatas) {
+    const parsedDatas = JSON.parse(jsonDatas);
+    if (!parsedDatas.hasOwnProperty('marque') || (parsedDatas['marque'] === undefined)) {
+      throw new Error('Il manque la marque');
+    }
+    if (!parsedDatas.hasOwnProperty('modele') || (parsedDatas['modele'] === undefined)) {
+      throw new Error('Il manque le modèle');
+    }
+    if (!parsedDatas.hasOwnProperty('couleur') || (parsedDatas['couleur'] === undefined)) {
+      throw new Error('Il manque la couleur');
+    }
+    if (!parsedDatas.hasOwnProperty('capacite') || (parsedDatas['capacite'] === undefined)) {
+      // throw new Error('Il manque la capacité');
+    }
+
+    this.brand = parsedDatas['marque'];
+    this.model = parsedDatas['modele'];
+    this.color = parsedDatas['couleur'];
+    this.capacity = parsedDatas['capacite'];
+
+    return this;
+  }
+
+  /**
+   * Apply business rules to scraping results
+   *
+   * @access public
+   * @param {object} options - Options to apply
+   * @param {boolean} options.withQuotes - Should we put words beetween quotes ?
+   * @param {boolean} options.withBrand - Should we display phone brand ?
+   * @param {boolean} options.withModel - Should we display phone model ?
+   * @param {boolean} options.withColor - Should we display phone color ?
+   * @param {boolean} options.withCapacity - Should we display phone capacity ?
+   * @param {boolean} options.randomly - Should we shuffle words ?
+   * @returns {string} The phone as a string
+   */
+  toString({
+    withQuotes = true,
+    withBrand = true,
+    withModel = true,
+    withColor = true,
+    withCapacity = true,
+    randomly = false
+  } = {}) {
+    var result = [];
+    var quotes = withQuotes ? '\"' : '';
+
+    if (withBrand &amp;&amp; (this.brand != ''))
+      result.push(quotes + this.brand + quotes);
+    if (withModel &amp;&amp; (this.model != ''))
+      result.push(quotes + this.model + quotes);
+    if (withColor &amp;&amp; (this.color != ''))
+      result.push(quotes + this.color + quotes);
+    if (withCapacity &amp;&amp; (this.capacity != ''))
+      result.push(quotes + this.capacity + quotes);
+
+    if (randomly) {
+      //Shuffle result
+      for (let i = result.length - 1; i > 0; i--) {
+        let j = Math.floor(Math.random() * (i + 1));
+        [result[i], result[j]] = [result[j], result[i]];
+      }
+    }
+
+    return result.join(' ');
+  }
+}
+
+module.exports = {
+  Phone: Phone
+}
+</code></pre>
+        </article>
+    </section>
+
+
+
+
+</div>
+
+<nav>
+    <h2><a href="index.html">Home</a></h2><h3>Classes</h3><ul><li><a href="Phone.html">Phone</a></li></ul><h3>Global</h3><ul><li><a href="global.html#applyRules">applyRules</a></li><li><a href="global.html#excludeDeviationFromMedian">excludeDeviationFromMedian</a></li><li><a href="global.html#getPhoneFromSearch">getPhoneFromSearch</a></li><li><a href="global.html#getScraper">getScraper</a></li><li><a href="global.html#getVendorType">getVendorType</a></li><li><a href="global.html#iframeAttached">iframeAttached</a></li><li><a href="global.html#initRoutes">initRoutes</a></li><li><a href="global.html#logToAswo">logToAswo</a></li><li><a href="global.html#logToChronospare">logToChronospare</a></li><li><a href="global.html#logToUtopya">logToUtopya</a></li><li><a href="global.html#median">median</a></li><li><a href="global.html#openPage">openPage</a></li><li><a href="global.html#parseResult">parseResult</a></li><li><a href="global.html#priceRangeMargin">priceRangeMargin</a></li><li><a href="global.html#roundPrice">roundPrice</a></li><li><a href="global.html#scrap">scrap</a></li><li><a href="global.html#scrapVendor">scrapVendor</a></li><li><a href="global.html#scrapVendors">scrapVendors</a></li><li><a href="global.html#search">search</a></li><li><a href="global.html#setArtoo">setArtoo</a></li><li><a href="global.html#setLevenshteinFunction">setLevenshteinFunction</a></li><li><a href="global.html#timeout">timeout</a></li></ul>
+</nav>
+
+<br class="clear">
+
+<footer>
+    Documentation generated by <a href="https://github.com/jsdoc/jsdoc">JSDoc 3.6.3</a> on Wed Feb 12 2020 10:28:51 GMT+0100 (GMT+01:00)
+</footer>
+
+<script> prettyPrint(); </script>
+<script src="scripts/linenumber.js"> </script>
+</body>
+</html>
